@@ -98,6 +98,9 @@ class PBXAggregateTarget(AbstractTarget):
 class XcodeProject(object):
 
     def __init__(self, path):
+        path = os.path.abspath(os.path.expanduser(path))
+        if not os.path.exists(os.path.join(path, 'project.pbxproj')):
+            raise Exception('Not a valid project path: {}'.format(path))
         self.path = path
         self.parse()
 
