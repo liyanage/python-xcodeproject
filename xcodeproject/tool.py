@@ -4,6 +4,7 @@ from . import tool_base
 from . import xcodeproject
 
 import os
+import sys
 
 class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
     """List build settings that are defined in a project file, either at the project or target level."""
@@ -19,6 +20,10 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
     def find_projects(self):
         project_paths = []
         for dirpath, dirnames, filenames in os.walk(self.args.path, topdown=True):
+            for exclude in self.args.exclude_dir:
+                if exclude in dirnames:
+                    print >> sys.stderr, 'Skipping {}'.format(os.path.join(dirpath, exclude))
+                    del dirnames[dirnames.index(exclude)]
             for dirname in [d for d in dirnames if d.endswith('.xcodeproj')]:
                 project_paths.append(os.path.abspath(os.path.expanduser(os.path.join(dirpath, dirname))))
         return project_paths
@@ -26,7 +31,7 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
     def process_projects(self, paths):
         for project_path in paths:
             project = xcodeproject.XcodeProject(project_path)
-            project_header = ['========== Project {} =========='.format(project.name)]
+            project_header = ['========== Project {} ({}) =========='.format(project.name, project_path)]
             project_configs = project.root_object().build_configurations
             for config in project_configs:
                 text = config.build_settings_text()
@@ -34,8 +39,12 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
                     continue
                 if project_header:
                     print project_header.pop()
-                print 'Project-level build settings in configuration "{}":'.format(config.name)
-                print text
+
+                if self.args.summary:
+                    print 'Project-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
+                else:
+                    print 'Project-level build settings in configuration "{}":'.format(config.name)
+                    print text
                 
             for target in project.targets():
                 configs = target.build_configurations
@@ -48,15 +57,19 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
                         print project_header.pop()
                     if target_header:
                         print target_header.pop()
-                    print 'Target-level build settings in configuration "{}":'.format(config.name)
-                    print text
-            
-        
 
+                    if self.args.summary:
+                        print 'Target-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
+                    else:
+                        print 'Target-level build settings in configuration "{}":'.format(config.name)
+                        print text
+            
     @classmethod
     def configure_argument_parser(cls, parser):
         parser.add_argument('path', help='Path to the project file, or to the toplevel directory in which to find project file if --recursive is given')
         parser.add_argument('-r', '--recursive', action='store_true', help='Enable verbose debug logging')
+        parser.add_argument('-s', '--summary', action='store_true', help='Print more concise summary information')
+        parser.add_argument('--exclude-dir', action='append', default=[], help='Exclude subdirectories with the given name in recursive mode')
 
 
 class XcodeprojectTool(tool_base.Tool):
