@@ -31,7 +31,7 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
     def process_projects(self, paths):
         for project_path in paths:
             project = xcodeproject.XcodeProject(project_path)
-            project_header = ['========== Project {} ({}) =========='.format(project.name, project_path)]
+            project_header = ['\n========== Project {} ({}) =========='.format(project.name, project_path)]
             project_configs = project.root_object().build_configurations
             for config in project_configs:
                 text = config.build_settings_text()
