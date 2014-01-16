@@ -26,18 +26,36 @@ class TestXcodeProject(unittest.TestCase):
         self.assertIsInstance(self.project.root_object(), xcodeproject.PBXProject)
 
     def testTargets(self):
-        self.assertIsInstance(self.project.targets()[0], xcodeproject.AbstractTarget)
+        targets = self.project.targets()
+        self.assertTrue(len(targets) > 0)
+        for target in targets:
+            self.assertIsInstance(target, xcodeproject.AbstractTarget)
+
+    def testBuildConfigurations(self):
         for target in self.project.targets():
-            configs = target.build_configurations
-            header = ['========== Target {} =========='.format(target.name)]
+            configs = target.buildConfigurationList
+            self.assertIsInstance(configs, xcodeproject.XCConfigurationList)
+            self.assertEquals(len(configs.buildConfigurations), 2)
             for config in configs:
                 text = config.build_settings_text()
-                if not text:
-                    continue
-                if header:
-                    print header.pop()
-                print 'config "{}"'.format(target.name, config.name)
-                print text
+                self.assertTrue(text)
+
+    def testScriptBuildPhases(self):
+        target = self.project.target_for_name('PythonXcodeTest')
+        self.assertIsInstance(target, xcodeproject.PBXNativeTarget)
+        script_build_phases = target.script_build_phases()
+        self.assertTrue(len(script_build_phases), 2)
+
+        self.assertIsInstance(script_build_phases[0], xcodeproject.PBXShellScriptBuildPhase)
+        self.assertEquals(script_build_phases[0].name, 'Test Shell Script Phase 1')
+        self.assertEquals(script_build_phases[0].shellPath, '/bin/sh')
+        self.assertEquals(script_build_phases[0].shellScript, 'echo foo\n')
+
+        self.assertIsInstance(script_build_phases[1], xcodeproject.PBXShellScriptBuildPhase)
+        self.assertEquals(script_build_phases[1].name, 'Test Shell Script Phase 2')
+        self.assertEquals(script_build_phases[1].shellPath, '/usr/bin/env python')
+        self.assertEquals(script_build_phases[1].shellScript, "print 'foo'\n")
+        
 
 
 if __name__ == '__main__':

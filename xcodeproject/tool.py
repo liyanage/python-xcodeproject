@@ -6,16 +6,24 @@ from . import xcodeproject
 import os
 import sys
 
-class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
-    """List build settings that are defined in a project file, either at the project or target level."""
+
+class ProjectFileProcessingSubcommand(tool_base.AbstractSubcommand):
     
     def run(self):
         project_paths = []
         if self.args.recursive:
             project_paths = self.find_projects()
         else:
-            project_paths = self.args.path
-        self.process_projects(project_paths)
+            project_paths = [self.args.path]
+        self.process_project_paths(project_paths)
+
+    def process_project_paths(self, paths):
+        for project_path in paths:
+            project = xcodeproject.XcodeProject(project_path)
+            self.process_project(project)
+
+    def process_project(self, project):
+        raise NotImplementedError()
     
     def find_projects(self):
         project_paths = []
@@ -28,48 +36,80 @@ class SubcommandListProjectFileBuildSettings(tool_base.AbstractSubcommand):
                 project_paths.append(os.path.abspath(os.path.expanduser(os.path.join(dirpath, dirname))))
         return project_paths
     
-    def process_projects(self, paths):
-        for project_path in paths:
-            project = xcodeproject.XcodeProject(project_path)
-            project_header = ['\n========== Project {} ({}) =========='.format(project.name, project_path)]
-            project_configs = project.root_object().build_configurations
-            for config in project_configs:
+    @classmethod
+    def configure_argument_parser(cls, parser):
+        parser.add_argument('path', help='Path to the project file, or to the toplevel directory in which to find project file if --recursive is given')
+        parser.add_argument('-r', '--recursive', action='store_true', help='Enable verbose debug logging')
+        parser.add_argument('--exclude-dir', action='append', default=[], help='Exclude subdirectories with the given name in recursive mode')
+
+
+class SubcommandListProjectFileBuildSettings(ProjectFileProcessingSubcommand):
+    """List build settings that are defined in a project file, either at the project or target level."""
+
+    def process_project(self, project):
+        project_header = ['\n========== Project {} ({}) =========='.format(project.name, project_path)]
+        project_configs = project.root_object().build_configurations
+        for config in project_configs:
+            text = config.build_settings_text()
+            if not text:
+                continue
+            if project_header:
+                print project_header.pop()
+
+            if self.args.summary:
+                print 'Project-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
+            else:
+                print 'Project-level build settings in configuration "{}":'.format(config.name)
+                print text
+            
+        for target in project.targets():
+            configs = target.build_configurations
+            target_header = ['---------- Target {} ----------'.format(target.name)]
+            for config in configs:
                 text = config.build_settings_text()
                 if not text:
                     continue
                 if project_header:
                     print project_header.pop()
+                if target_header:
+                    print target_header.pop()
 
                 if self.args.summary:
-                    print 'Project-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
+                    print 'Target-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
                 else:
-                    print 'Project-level build settings in configuration "{}":'.format(config.name)
+                    print 'Target-level build settings in configuration "{}":'.format(config.name)
                     print text
-                
-            for target in project.targets():
-                configs = target.build_configurations
-                target_header = ['---------- Target {} ----------'.format(target.name)]
-                for config in configs:
-                    text = config.build_settings_text()
-                    if not text:
-                        continue
-                    if project_header:
-                        print project_header.pop()
-                    if target_header:
-                        print target_header.pop()
-
-                    if self.args.summary:
-                        print 'Target-level build settings in configuration "{}": {} settings'.format(config.name, len(text.splitlines()))
-                    else:
-                        print 'Target-level build settings in configuration "{}":'.format(config.name)
-                        print text
             
     @classmethod
     def configure_argument_parser(cls, parser):
-        parser.add_argument('path', help='Path to the project file, or to the toplevel directory in which to find project file if --recursive is given')
-        parser.add_argument('-r', '--recursive', action='store_true', help='Enable verbose debug logging')
+        super(SubcommandListProjectFileBuildSettings, cls).configure_argument_parser(parser)
         parser.add_argument('-s', '--summary', action='store_true', help='Print more concise summary information')
-        parser.add_argument('--exclude-dir', action='append', default=[], help='Exclude subdirectories with the given name in recursive mode')
+
+
+class SubcommandPrintShellScripts(ProjectFileProcessingSubcommand):
+    """Print the code of all shell script build phases"""
+    
+    def process_project(self, project):
+        all_phases = []
+        for target in project.targets():
+            target_phases = []
+            for phase in target.script_build_phases():
+                target_phases.append(phase)
+            if target_phases:
+                all_phases.append((target, target_phases))
+
+        if all_phases:
+            print '======= Script phases in project {}'.format(project.name)
+            for target, phases in all_phases:
+                print 'Target {}'.format(target.name)
+                for phase in phases:
+                    print '>>>>>>>>>>>>>>>> Begin script "{}" (interpreter: {})'.format(phase.name, phase.shellPath)
+                    print phase.shellScript
+                    print '<<<<<<<<<<<<<<<< End script "{}" -------\n'.format(phase.name)
+                    
+                
+            
+
 
 
 class XcodeprojectTool(tool_base.Tool):

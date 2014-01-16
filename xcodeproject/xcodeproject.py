@@ -7,24 +7,68 @@ import plistlib
 import subprocess
 import logging
 
+
+# def camel_case_to_underscore(camelcase_value):
+#     return re.sub(r'([a-z])([A-Z])', lambda match: match.group(1) + '_' + match.group(2).lower(), camelcase_value)
+
+
+class PropertyConverter(object):
+
+    @classmethod
+    def decode_property_value(cls, project, value):
+        pass
+
+
+class IdentityPropertyConverter(object):
+
+    @classmethod
+    def decode_property_value(cls, project, value):
+        return value
+
+
+class ObjectReferencePropertyConverter(object):
+
+    @classmethod
+    def decode_property_value(cls, project, value):
+        if not value:
+            return None
+        return project.object_for_id(value)
+
+
+class ObjectReferenceListPropertyConverter(object):
+
+    @classmethod
+    def decode_property_value(cls, project, value):
+        if not value:
+            return []
+        return [project.object_for_id(i) for i in value]
+
+
 class ProjectItem(object):
 
     def __init__(self, id, data):
         self.id = id
         self.data = data
+        self.name = '(no name)'
 
-    def resolve_references(self, project):
-        pass
+    def parse_data(self, project):
+        converter_map = self.property_converter_map()
+        for property_name, value in self.data.items():
+            converter_class = converter_map.get(property_name, IdentityPropertyConverter)
+            value = converter_class.decode_property_value(project, value)
+            setattr(self, property_name, value)
+    
+    def property_converter_map(self):
+        return {}
+
+    def is_target(self):
+        return False
 
     def __unicode__(self):
         return u'<{} {} {}>'.format(type(self).__name__, self.id, self.name)
 
     def __str__(self):
         return unicode(self).encode('utf-8', errors='backslashreplace')
-
-    @property
-    def name(self):
-        return self.data['name'] if 'name' in self.data else '(no name)'
 
     @classmethod
     def subclass_map(cls):
@@ -54,28 +98,46 @@ class XCBuildConfiguration(ProjectItem):
 
 class XCConfigurationList(ProjectItem):
 
-    def build_configurations(self):
-        return self.configurations
-
     def __iter__(self):
-        for config in self.configurations:
+        for config in self.buildConfigurations:
             yield config
 
-    def resolve_references(self, project):
-        self.configurations = [project.object_for_id(i) for i in self.data['buildConfigurations']]
+    def property_converter_map(self):
+        converter_map = super(XCConfigurationList, self).property_converter_map()
+        converter_map.update({
+            'buildConfigurations': ObjectReferenceListPropertyConverter
+        })
+        return converter_map
 
 
 class ConfigurableProjectItem(ProjectItem):
 
-    def resolve_references(self, project):
-        self.build_configurations = project.object_for_id(self.data['buildConfigurationList'])
+    def property_converter_map(self):
+        property_map = super(ConfigurableProjectItem, self).property_converter_map()
+        property_map.update({
+            'buildConfigurationList': ObjectReferencePropertyConverter
+        })
+        return property_map
 
 
 class AbstractTarget(ConfigurableProjectItem):
 
-    @property
-    def product_name(self):
-        return self.data['productName'] if 'productName' in self.data else '(no product name)'
+    def __init__(self, *args, **kwargs):
+        super(AbstractTarget, self).__init__(*args, **kwargs)
+        self.productName = '(no product name)'
+
+    def is_target(self):
+        return True
+        
+    def script_build_phases(self):
+        return [p for p in self.buildPhases if isinstance(p, PBXShellScriptBuildPhase)]
+    
+    def property_converter_map(self):
+        property_map = super(AbstractTarget, self).property_converter_map()
+        property_map.update({
+            'buildPhases': ObjectReferenceListPropertyConverter
+        })
+        return property_map
 
 
 class PBXProject(ConfigurableProjectItem):
@@ -83,16 +145,14 @@ class PBXProject(ConfigurableProjectItem):
 
 
 class PBXNativeTarget(AbstractTarget):
-
-    # def resolve_references(self, project):
-    #     super(PBXNativeTarget, self).resolve_references(project)
     pass
 
 
 class PBXAggregateTarget(AbstractTarget):
+    pass
 
-    def resolve_references(self, project):
-        self.build_configurations = project.object_for_id(self.data['buildConfigurationList'])
+class PBXShellScriptBuildPhase(ProjectItem):
+    pass
 
 
 class XcodeProject(object):
@@ -126,10 +186,16 @@ class XcodeProject(object):
             self.objects[object_id] = item
 
         for item in self.objects.values():
-            item.resolve_references(self)
+            item.parse_data(self)
 
     def targets(self):
         return [i for i in self.objects.values() if isinstance(i, AbstractTarget)]
+    
+    def target_for_name(self, target_name):
+        for target in self.targets():
+            if target.name == target_name:
+                return target
+        return None
 
     def object_for_id(self, object_id):
         return self.objects[object_id]

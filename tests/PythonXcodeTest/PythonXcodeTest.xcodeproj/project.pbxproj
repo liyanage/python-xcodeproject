@@ -98,6 +98,8 @@
 				1BC96D02188311C700AFCEDA /* Sources */,
 				1BC96D03188311C700AFCEDA /* Frameworks */,
 				1BC96D04188311C700AFCEDA /* CopyFiles */,
+				1BD5F5D6188781A60008AA07 /* Test Shell Script Phase 1 */,
+				1BD5F5D7188781C90008AA07 /* Test Shell Script Phase 2 */,
 			);
 			buildRules = (
 			);
@@ -132,6 +134,37 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1BD5F5D6188781A60008AA07 /* Test Shell Script Phase 1 */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Test Shell Script Phase 1";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "echo foo\n";
+		};
+		1BD5F5D7188781C90008AA07 /* Test Shell Script Phase 2 */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Test Shell Script Phase 2";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = "/usr/bin/env python";
+			shellScript = "print 'foo'\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1BC96D02188311C700AFCEDA /* Sources */ = {
@@ -250,6 +283,7 @@
 				1BC96D16188311C700AFCEDA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
