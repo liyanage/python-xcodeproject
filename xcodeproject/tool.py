@@ -47,8 +47,8 @@ class SubcommandListProjectFileBuildSettings(ProjectFileProcessingSubcommand):
     """List build settings that are defined in a project file, either at the project or target level."""
 
     def process_project(self, project):
-        project_header = ['\n========== Project {} ({}) =========='.format(project.name, project_path)]
-        project_configs = project.root_object().build_configurations
+        project_header = ['\n========== Project {} ({}) =========='.format(project.name, project.path)]
+        project_configs = project.root_object().buildConfigurationList
         for config in project_configs:
             text = config.build_settings_text()
             if not text:
@@ -63,7 +63,7 @@ class SubcommandListProjectFileBuildSettings(ProjectFileProcessingSubcommand):
                 print text
             
         for target in project.targets():
-            configs = target.build_configurations
+            configs = target.buildConfigurationList
             target_header = ['---------- Target {} ----------'.format(target.name)]
             for config in configs:
                 text = config.build_settings_text()
