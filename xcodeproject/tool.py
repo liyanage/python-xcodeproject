@@ -38,8 +38,8 @@ class ProjectFileProcessingSubcommand(tool_base.AbstractSubcommand):
     
     @classmethod
     def configure_argument_parser(cls, parser):
-        parser.add_argument('path', help='Path to the project file, or to the toplevel directory in which to find project file if --recursive is given')
-        parser.add_argument('-r', '--recursive', action='store_true', help='Enable verbose debug logging')
+        parser.add_argument('path', help='Path to the project file, or to the toplevel directory in which to find project files if --recursive is given')
+        parser.add_argument('-r', '--recursive', action='store_true', help='Treat the given path as a root directory instead of an xcode project bundle and recursively find and process all xcode projects below that root')
         parser.add_argument('--exclude-dir', action='append', default=[], help='Exclude subdirectories with the given name in recursive mode')
 
 
