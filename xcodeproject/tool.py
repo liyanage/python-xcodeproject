@@ -19,6 +19,7 @@ class ProjectFileProcessingSubcommand(tool_base.AbstractSubcommand):
 
     def process_project_paths(self, paths):
         for project_path in paths:
+            print project_path
             project = xcodeproject.XcodeProject(project_path)
             self.process_project(project)
 
@@ -106,10 +107,32 @@ class SubcommandPrintShellScripts(ProjectFileProcessingSubcommand):
                     print '>>>>>>>>>>>>>>>> Begin script "{}" (interpreter: {})'.format(phase.name, phase.shellPath)
                     print phase.shellScript
                     print '<<<<<<<<<<<<<<<< End script "{}" -------\n'.format(phase.name)
-                    
-                
-            
 
+
+class SubcommandPrintOrphanedFileReferences(ProjectFileProcessingSubcommand):
+    """Print file references that are not used anywhere"""
+    
+    def process_project(self, project):
+        known_file_reference_map = self.known_file_reference_map_for_project(project)
+        orphaned_file_references = {k: v for k, v in project.file_reference_map().items() if k not in known_file_reference_map}
+
+        if orphaned_file_references:
+            print '======= Orphaned file references (PBXFileReference) in {}'.format(project.name)
+            for id, ref in orphaned_file_references.items():
+                print '{} {}'.format(id, ref.path)
+
+    def known_file_reference_map_for_project(self, project):
+        known_file_reference_map = {}
+
+        for id, build_file in project.build_file_map().items():
+            known_file_reference_map[build_file.fileRef.id] = build_file
+
+        for group_id, group in project.all_groups_map().items():
+            for item in group.children:
+                if item.is_file_reference():
+                    known_file_reference_map[item.id] = item
+        
+        return known_file_reference_map
 
 
 class XcodeprojectTool(tool_base.Tool):

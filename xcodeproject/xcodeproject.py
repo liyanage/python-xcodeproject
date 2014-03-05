@@ -6,6 +6,7 @@ import sys
 import plistlib
 import subprocess
 import logging
+import collections
 
 
 # def camel_case_to_underscore(camelcase_value):
@@ -59,9 +60,17 @@ class ProjectItem(object):
             setattr(self, property_name, value)
     
     def property_converter_map(self):
-        return {}
+        return {
+            'files': ObjectReferenceListPropertyConverter
+        }
+
+    def has_files(self):
+        return 'files' in self.data;
 
     def is_target(self):
+        return False
+    
+    def is_file_reference(self):
         return False
 
     def __unicode__(self):
@@ -77,6 +86,39 @@ class ProjectItem(object):
             map.update(subclass.subclass_map())
         return map
 
+
+class PBXFileReference(ProjectItem):
+
+    def is_file_reference(self):
+        return True
+
+
+class PBXBuildFile(ProjectItem):
+
+    def property_converter_map(self):
+        converter_map = super(PBXBuildFile, self).property_converter_map()
+        converter_map.update({
+            'fileRef': ObjectReferencePropertyConverter
+        })
+        return converter_map
+
+
+class PBXGroup(ProjectItem):
+
+    def property_converter_map(self):
+        converter_map = super(PBXGroup, self).property_converter_map()
+        converter_map.update({
+            'children': ObjectReferenceListPropertyConverter
+        })
+        return converter_map
+
+
+class PBXVariantGroup(PBXGroup):
+    pass
+
+
+class XCVersionGroup(PBXGroup):
+    pass
 
 class XCBuildConfiguration(ProjectItem):
 
@@ -151,6 +193,7 @@ class PBXNativeTarget(AbstractTarget):
 class PBXAggregateTarget(AbstractTarget):
     pass
 
+
 class PBXShellScriptBuildPhase(ProjectItem):
     pass
 
@@ -162,6 +205,7 @@ class XcodeProject(object):
         if not os.path.exists(os.path.join(path, 'project.pbxproj')):
             raise Exception('Not a valid project path: {}'.format(path))
         self.path = path
+        self.class_name_to_item_map = collections.defaultdict(dict)
         self.parse()
 
     @property    
@@ -184,6 +228,7 @@ class XcodeProject(object):
             item = item_class(object_id, object_data)
             logging.debug('{}: {} {}'.format(object_id, item_class_name, item))
             self.objects[object_id] = item
+            self.class_name_to_item_map[item_class_name][object_id] = item
 
         for item in self.objects.values():
             item.parse_data(self)
@@ -196,10 +241,32 @@ class XcodeProject(object):
             if target.name == target_name:
                 return target
         return None
+    
+    def build_file_map(self):
+        return self.class_name_to_item_map['PBXBuildFile']
+
+    def file_reference_map(self):
+        return self.class_name_to_item_map['PBXFileReference']
+
+    def group_map(self):
+        return self.class_name_to_item_map['PBXGroup']
+
+    def variant_group_map(self):
+        return self.class_name_to_item_map['PBXVariantGroup']
+
+    def version_group_map(self):
+        return self.class_name_to_item_map['XCVersionGroup']
+
+    def all_groups_map(self):
+        groups = {}
+        groups.update(self.group_map())
+        groups.update(self.variant_group_map())
+        groups.update(self.version_group_map())
+        return groups
 
     def object_for_id(self, object_id):
         return self.objects[object_id]
-    
+
     def root_object(self):
         return self.object_for_id(self.root_object_id)
 
