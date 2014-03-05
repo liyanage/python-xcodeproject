@@ -64,9 +64,6 @@ class ProjectItem(object):
             'files': ObjectReferenceListPropertyConverter
         }
 
-    def has_files(self):
-        return 'files' in self.data;
-
     def is_target(self):
         return False
     
