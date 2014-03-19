@@ -262,7 +262,12 @@ class XcodeProject(object):
         return groups
 
     def object_for_id(self, object_id):
+        if object_id not in self.objects:
+            raise Exception('Invalid object reference {} in {}'.format(object_id, self.path))
         return self.objects[object_id]
+
+    def has_object_with_id(self, object_id):
+        return object_id in self.objects
 
     def root_object(self):
         return self.object_for_id(self.root_object_id)
