@@ -50,6 +50,8 @@ class ProjectItem(object):
     def __init__(self, id, data):
         self.id = id
         self.data = data
+        self.line_number_start = None
+        self.line_number_end = None
         self.name = '(no name)'
 
     def parse_data(self, project):
@@ -213,6 +215,8 @@ class XcodeProject(object):
         project_file_path = os.path.join(self.path, 'project.pbxproj')
         xml_data = subprocess.check_output(['plutil', '-convert', 'xml1', '-o', '-', project_file_path])
         data = plistlib.readPlistFromString(xml_data)
+        
+        object_id_to_line_number_map = self.object_id_line_number_map_for_path(project_file_path)
 
         self.objects = {}
         project_class_map = ProjectItem.subclass_map()
@@ -223,12 +227,44 @@ class XcodeProject(object):
             item_class_name = object_data['isa']
             item_class = project_class_map.get(item_class_name, ProjectItem)
             item = item_class(object_id, object_data)
+            item.line_number_start, item.line_number_end = object_id_to_line_number_map[object_id]
             logging.debug('{}: {} {}'.format(object_id, item_class_name, item))
             self.objects[object_id] = item
             self.class_name_to_item_map[item_class_name][object_id] = item
 
         for item in self.objects.values():
             item.parse_data(self)
+    
+    def object_id_line_number_map_for_path(self, path):
+        object_id_line_re = re.compile(r'(\s*)([A-F0-9]{24})\s*(?:/\*s*.*\s*\*/)?\s*=\s*{(.*)')
+        object_end_line_re = None
+        state = 'start'
+        current_object_start_line_number = None
+        current_object_id = None
+        object_id_to_line_number_map = {}
+        with open(path) as f:
+            for line_number, line in enumerate(f, start=1):
+                if state == 'start':
+                    match = object_id_line_re.match(line)
+                    if match:
+                        object_id = match.group(2)
+                        assert object_id not in object_id_to_line_number_map, 'Object ID {} seen on line {} and {}'.format(object_id, object_id_to_line_number_map[object_id], line_number)
+                        if '}' in match.group(3):
+                            # one-line object
+                            object_id_to_line_number_map[object_id] = [line_number, line_number]
+                        else:
+                            # multi-line object
+                            current_object_start_line_number = line_number
+                            current_object_id = object_id
+                            object_end_line_re = re.compile(match.group(1) + '}')
+                            state = 'reading_object'
+                if state == 'reading_object':
+                    match = object_end_line_re.match(line)
+                    if match:
+                        object_id_to_line_number_map[current_object_id] = [current_object_start_line_number, line_number]
+                        state = 'start'
+        return object_id_to_line_number_map
+
 
     def targets(self):
         return [i for i in self.objects.values() if isinstance(i, AbstractTarget)]
@@ -265,6 +301,9 @@ class XcodeProject(object):
         if object_id not in self.objects:
             raise Exception('Invalid object reference {} in {}'.format(object_id, self.path))
         return self.objects[object_id]
+
+    def main_group_id(self):
+        return self.root_object().mainGroup
 
     def has_object_with_id(self, object_id):
         return object_id in self.objects

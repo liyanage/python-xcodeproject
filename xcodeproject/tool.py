@@ -135,6 +135,26 @@ class SubcommandPrintOrphanedFileReferences(ProjectFileProcessingSubcommand):
         return known_file_reference_map
 
 
+# TODO: generalize this for arbitrary settings
+class SubcommandChangeProjectLevelWhitespaceSetting(ProjectFileProcessingSubcommand):
+    """Generate sed statements for adding a usesTabs setting and value for a project"""
+    
+    def process_project(self, project):
+        main_group = project.object_for_id(project.main_group_id())
+
+        if 'usesTabs' in main_group.data:
+            print 'already has usesTabs setting: {} {}'.format(main_group.data['usesTabs'], project.path)
+            return
+
+        print r"sed -i '' -e $'{}i\\\n\\\t\\\t\\\tusesTabs = {};\n' '{}'".format(main_group.line_number_end, self.args.value, os.path.join(project.path, 'project.pbxproj'))
+
+    @classmethod
+    def configure_argument_parser(cls, parser):
+        super(SubcommandChangeProjectLevelWhitespaceSetting, cls).configure_argument_parser(parser)
+        parser.add_argument('value', help='New settings value, 0 or 1')
+
+        
+
 class XcodeprojectTool(tool_base.Tool):
     """Xcode Project Tool"""
     
